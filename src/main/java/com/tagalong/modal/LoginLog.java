@@ -2,6 +2,9 @@ package com.tagalong.modal;
 
 import jakarta.persistence.ManyToOne;
 
+import org.springframework.http.HttpHeaders;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,13 +14,14 @@ import org.hibernate.type.SqlTypes;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tagalong.util.CommonUtil;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 
-public class LoginLog {
+public class LoginLog extends BaseEntity{
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "uid", insertable = false, updatable = false)
     private User user;
@@ -51,6 +55,31 @@ public class LoginLog {
     // device id sent by frontend for login
     @JsonProperty("device_id")
     private String deviceId;
+
+    public LoginLog(boolean shouldInitialize) {
+        if (shouldInitialize) {
+            setUid(CommonUtil.getAlphaNumericUUID());
+            this.lockStatus = LockStatus.OPEN;
+        }
+    }
+
+    public LoginLog(
+        String userId,
+        HttpHeaders headers,
+        LoginStatus loginStatus,
+        LockStatus lockStatus,
+        String deviceId) {
+            this(true);
+            this.UserId = userId;
+            Map<String, List<String>> headerMap = new HashMap<>();
+            if (headers != null) {
+                headers.forEach((k, v) -> headerMap.put(k, new ArrayList<>(v)));
+            }
+            this.clientHeaders = headerMap;
+            this.loginStatus = loginStatus;
+            this.lockStatus = lockStatus;
+            this.deviceId = deviceId;
+        }
 
     public enum LoginStatus {
         PASSWORD_VERIFIED,
