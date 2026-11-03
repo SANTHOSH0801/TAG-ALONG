@@ -22,13 +22,24 @@ public interface LoginLogRepository extends JpaRepository<LoginLog, Long> {
     
     @Query (
         value = 
-            "SELECT COUNT(*) FROM ds.login_log WHERE user_id = :userUid AND created_at >= TO_TIMESTAMP(:cutoffTimeMs / 1000) "
+            "SELECT COUNT(*) FROM ds.login_log WHERE user_id = :userUid AND created_at >= TO_TIMESTAMP(:cuttOffTimeMs / 1000) "
             + "AND id > (SELECT COALESCE(MAX(id), 0) FROM ds.login_log WHERE user_id = :userUid "
             + "AND (login_status = 'SUCCESS' OR lock_status = 'RESET') AND is_deleted = false)"
             + "AND login_status = 'FAILED' AND is_deleted = false",
     nativeQuery = true)
     int consecutiveFailureCountForIncorrectPassword(
         @Param ("userUid") String userUid, @Param("cutoffTimeMs") Long cuttOffTimeMs
+    );
+
+    @Query (
+        value = 
+            "SELECT COUNT(*) FROM ds.login_log WHERE user_id = :userUid AND created_at >= TO_TIMESTAMP(:cuttOffTimeMs / 1000) "
+            + "AND id > (SELECT COALESCE(MAX(id), 0) FROM ds.login_log WHERE user_id = :userUid "
+            + "AND (login_status = 'SUCCESS' OR lock_status = 'RESET') AND is_deleted = false)"
+            + "AND login_status = 'INCORRECT_OTP' AND is_deleted = false",
+    nativeQuery = true)
+    int consecutiveFailureCountForIncorrectOtp(
+        @Param ("userUid") String userUid, @Param ("cuttOffTimeMs") Long cuttoffTimeMs
     );
 
     

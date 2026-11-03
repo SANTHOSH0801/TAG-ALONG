@@ -1,9 +1,12 @@
 package com.tagalong.entity;
 
+import com.tagalong.Constants.Role;
 import com.tagalong.modal.BaseEntity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,6 +25,10 @@ public class User extends BaseEntity{
 
     @Column(nullable= false, unique= true)
     private String email;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_role")
+    private Role role;
 
     @Column(nullable= false)
     private String password;
