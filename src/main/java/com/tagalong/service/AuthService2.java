@@ -19,6 +19,7 @@ import javax.security.auth.login.AccountLockedException;
 import com.tagalong.Config.AuthConfiguration;
 import com.tagalong.Constants.Role;
 import com.tagalong.dto.AuthRequest;
+import com.tagalong.dto.AuthResponse;
 import com.tagalong.entity.User;
 import com.tagalong.exception.InvalidCredentialsException;
 import com.tagalong.modal.LoginLog;
@@ -148,6 +149,33 @@ public class AuthService2 {
                         Pair<Boolean, Integer> lockUser = validateLoginLock(headers, primary, deviceUuid, lastLoginLog);
                         throw new InvalidCredentialsException("Incorrect email or password. You have %s retries left".formatted(lockUser.getRight()));
                     }
+
+                    String ipAddress = extractIpAddressFromHeaders(headers, request);
+                    boolean isNewIp = isNewIpAddress(authenticatedUser.getUserUid(), ipAddress);
+
+                    log.debug("Current IP address for user {}: {} - {}", authenticatedUser.getUserUid(), ipAddress != null ? ipAddress : "unknown", isNewIp ? "NEW IP" : "ALREADY EXISTS");
+
+                    String deviceUuid = getDeviceUuidFromHeaders(headers);
+                    PermissionGroup permissions = loadPermissions(authenticatedUser);
+                    Role role = authenticatedUser.getRole();
+                    String accountUid = authenticatedUser.getAccountInfo() != null ?
+                                        authenticatedUser.getAccountInfo().getAccountUid() : null;
+                    ResponseEntity<?> securityCheckResult = validateLoginSecurityChecks(authenticatedUser, accountUid, lastLoginLog, headers, deviceUuid);
+
+                    if (securityCheckResult != null) {
+                        return securityCheckResult;
+                    }
+
+                    accountUid = userService.validateUserAccount(authenticatedUser, accountUid);
+
+                    if (!PasswordHashHelper.validatePasswordFormat(req.getPassword())) {
+                        AuthToken reset = AuthToken.initialPasswordReset(authenticatedUser);
+                        authTokenRepo.save(reset);
+                        String redirectUrl = emailUtil.getEmailVerification(reset.getUserId(), reset.getAuthToken(), appConfig.getEmailConfiguration().getPwdResetEmailVerifyUrl(), AppConstants.PWD_RESET_VERIFY_PATH, EmailVerification.Initiator.PASSWORD_RESET) + "&email=" + authenticatedUser.getEmailEncrypted();
+                        return ResponseEntity.status(HttpStatus.SEE_OTHER).location(URI.create(redirectUrl)).body("ok");
+                    }
+                    log.info("Login : User authenticated for userId: {}", authenticatedUser.getUid());
+                    return buildAuthResponseWithAccounts(req, headers, authenticatedUser, deviceUuid, lastLoginLog, userDeviceInfo, permissions, role, accountUid, isNewIp);
                 }
                 default -> {
                     return ResponseEntity.badRequest().body(Map.of("message", "Unsupported action"));
