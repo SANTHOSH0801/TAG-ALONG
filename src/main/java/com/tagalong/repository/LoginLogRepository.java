@@ -42,6 +42,17 @@ public interface LoginLogRepository extends JpaRepository<LoginLog, Long> {
         @Param ("userUid") String userUid, @Param ("cuttOffTimeMs") Long cuttoffTimeMs
     );
 
-    
-    
+    @Query(
+        value = """
+        SELECT * FROM ds.login_log
+        WHERE user_id = :userId
+        AND login_status = 'SUCCESS'
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        nativeQuery = true
+    )
+    LoginLog getLastSuccessfuLogin(
+        @Param("userId") String userId
+    );
 }

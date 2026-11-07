@@ -192,6 +192,84 @@ public class AuthService2 {
         return deviceUuid;
     }
 
+    private String extractIpAddressFromHeaders(HttpHeaders headers, HttpServletRequest request) {
+        if (headers == null) {
+            log.debug("Headers are null, cannot extract IP address");
+            return null;
+        }
+        log.debug("Available headers for IP extraction: {}", headers.keySet());
+
+        String xForwardedFor = headers.getFirst("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            String[] ips = xForwardedFor.split(",");
+            String ip = ips[0].trim();
+            log.debug("Found IP from X-Forwaded-For: {}", ip);
+            return ip;
+        }
+
+        String xRealIp = headers.getFirst("X-Real-IP");
+        if(xRealIp != null && !xRealIp.isEmpty()) {
+            log.debug("Found IP from X-Real-IP: {}", xRealIp);
+            return xRealIp;
+        }
+
+        String[] ipHeaders = {"X-Client-IP", "X-Forwarded", "Forwarded", "X-Cluster-Client-IP", "CF-Connecting-IP", "True-Client-IP"};
+        for (String headerName: ipHeaders) {
+            String ip = headers.getFirst(headerName);
+            if (ip != null && !ip.isEmpty()) {
+                log.debug("Found IP from {}: {}", headerName, ip);
+                return ip;
+            }
+        }
+
+        if (request != null) {
+            String remoteAddr = request.getRemoteAddr();
+            if (StringUtils.isNotBlank(remoteAddr)) {
+                log.debug("Found IP from request remote address: {}", remoteAddr);
+                return remoteAddr;
+            }
+        } 
+        log.debug("No IP address found in headers or request");
+        return null;
+
+    }
+
+    private boolean isNewIpAddress(String userId, String ipAddress) {
+
+        try {
+
+            LoginLog lastSuccessfullLogin = loginLogRepo.getLastSuccessfulLogin(userId);
+
+            if (lastSuccessfullLogin == null) {
+                log.debug("No successful login history found for user: {}", userId);
+                return true;
+            }
+
+            String lastKnownIp = null;
+            if (lastSuccessfullLogin.getClientHeaders() != null) {
+                lastKnownIp = extractIpAddressFromMap(
+                    lastSuccessfullLogin.getClientHeaders()
+                );
+            }
+
+            if (lastKnownIp == null) {
+                log.debug("No historical IP found for user {}, " + "skippinh new-IP detection", userId);
+                return false;
+            }
+
+            boolean isNew = ipAddress == null || !ipAddress.equals(lastKnownIp);
+            if (isNew) {
+                log.debug("New IP address detected for user {}: current={} , last_known={}",  userId, ipAddress != null ? ipAddress : "none", lastKnownIp);
+            }
+
+            return isNew;
+        } catch (Exception e) {
+            log.error("Error checking IP address for user: {}", userId, e);
+            return true;
+        }
+
+    }
+
     public void saveLoginLock(String userUid, HttpHeaders headers, LockStatus lockStatus, String deviceUuid) {
         LoginLog loginLog = new LoginLog(userUid, headers, LoginLog.LoginStatus.FAILED, lockStatus, deviceUuid);
         loginLogRepo.saveAndFlush(loginLog);
